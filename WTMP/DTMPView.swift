@@ -1,21 +1,16 @@
-//
-//  DTMPView.swift
-//  WTMP
-//
-//  Created by wecancity on 19/08/2023.
-//
-
-
 import SwiftUI
 import AVFoundation
 import CoreMotion
+import Photos
 
 struct DTMPView: View {
     @State private var motionManager = CMMotionManager()
     @State private var isMotionDetectionActive = false
     @State private var isPasscodeSettingActive = false
     @State private var enteredPasscode = ""
-
+    @StateObject private var photoCaptureHandler = PhotoCaptureHandler()
+    @State private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    
     var body: some View {
         NavigationView {
             VStack {
@@ -31,7 +26,7 @@ struct DTMPView: View {
 
                 Spacer()
                 Button(action: {
-                    handleStartButtonTap()
+                    handlePlayStopButtonTap()
                 }) {
                     Text(isMotionDetectionActive ? "Stop" : "Start")
                         .font(.system(size: 20, weight: .bold))
@@ -44,31 +39,23 @@ struct DTMPView: View {
                 }
             }
             .padding(.bottom)
-        }
-    }
-
-    private func handleStartButtonTap() {
-        if let savedPasscode = UserDefaults.standard.string(forKey: "passcode"), !savedPasscode.isEmpty {
-            if !isMotionDetectionActive {
-                toggleMotionDetection()
-            } else {
-                isMotionDetectionActive = false
+            .sheet(isPresented: $isPasscodeSettingActive) {
+                PasswordValidationView(
+                    isPasscodeSettingActive: $isPasscodeSettingActive,
+                    enteredPasscode: $enteredPasscode,
+                    stopMotionDetection: stopMotionDetection,
+                    stopSoundPlay: {})
             }
-        } else {
-            isPasscodeSettingActive = true
         }
-    }
-
-    private func toggleMotionDetection() {
-        if isMotionDetectionActive {
+        .onAppear {
+            configureMotionDetection()
+        }
+        .onDisappear {
             stopMotionDetection()
-        } else {
-            startMotionDetection()
         }
     }
-
-    private func startMotionDetection() {
-        isMotionDetectionActive = true
+    
+    private func configureMotionDetection() {
         if motionManager.isAccelerometerAvailable {
             motionManager.accelerometerUpdateInterval = 0.2
             motionManager.startAccelerometerUpdates(to: .main) { accelerometerData, error in
@@ -80,18 +67,60 @@ struct DTMPView: View {
                     let movementThreshold: Double = 1.2
 
                     if magnitude > movementThreshold && isMotionDetectionActive {
-                        capturePhoto()
+                        capturePhotoInBackground()
                     }
                 }
             }
         }
     }
-
+    
+    private func handlePlayStopButtonTap() {
+        if let savedPasscode = UserDefaults.standard.string(forKey: "passcode"), !savedPasscode.isEmpty {
+            if !isMotionDetectionActive {
+                toggleMotionDetection()
+            } else {
+                isPasscodeSettingActive = true
+            }
+        } else {
+            isPasscodeSettingActive = true
+        }
+    }
+    
+    private func toggleMotionDetection() {
+        if isMotionDetectionActive {
+            stopMotionDetection()
+        } else {
+            startMotionDetection()
+        }
+    }
+    
+    private func startMotionDetection() {
+        isMotionDetectionActive = true
+    }
+    
     private func stopMotionDetection() {
         motionManager.stopAccelerometerUpdates()
         isMotionDetectionActive = false
+        endBackgroundTask()
     }
-
+    
+    private func endBackgroundTask() {
+        if backgroundTask != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundTask)
+            backgroundTask = .invalid
+        }
+    }
+    
+    private func capturePhotoInBackground() {
+        backgroundTask = UIApplication.shared.beginBackgroundTask { [self] in
+            self.endBackgroundTask()
+        }
+        
+        DispatchQueue.global(qos: .background).async {
+            self.capturePhoto()
+        }
+    }
+    
     private func capturePhoto() {
         let captureSession = AVCaptureSession()
         captureSession.sessionPreset = .photo
@@ -114,16 +143,16 @@ struct DTMPView: View {
                 captureSession.startRunning()
                 
                 let settings = AVCapturePhotoSettings()
-                photoOutput.capturePhoto(with: settings, delegate: PhotoCaptureDelegate())
+                settings.flashMode = .on // Try different flash modes like .on or .off
+                settings.photoQualityPrioritization = .balanced // You can experiment with different prioritizations
+                if let availableFormat = photoOutput.availablePhotoPixelFormatTypes.first {
+                           settings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: availableFormat]
+                       }
+                photoOutput.capturePhoto(with: settings, delegate: photoCaptureHandler)
             }
-            print("capture ")
-            
         } catch {
             print("Error setting up camera input: \(error.localizedDescription)")
         }
-    
-        
-        
     }
 }
 
@@ -133,27 +162,36 @@ struct DTMPView_Previews: PreviewProvider {
     }
 }
 
-
-class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
-    var photoCaptureCompletion: ((UIImage?, Error?) -> Void)?
+class PhotoCaptureHandler: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
+    @Published var capturedImage: UIImage?
+    @Published var captureError: Error?
 
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         if let imageData = photo.fileDataRepresentation(), let image = UIImage(data: imageData) {
-            photoCaptureCompletion?(image, nil)
-            
-            // Save the captured image to the photo library
-            UIImageWriteToSavedPhotosAlbum(image, self, #selector(image(_:didFinishSavingWithError:contextInfo:)), nil)
-            
+            capturedImage = image
+            captureError = nil
+            savePhotoToLibrary(image)
         } else {
-            photoCaptureCompletion?(nil, error)
+            capturedImage = nil
+            captureError = error
         }
     }
     
-    @objc func image(_ image: UIImage, didFinishSavingWithError error: Error?, contextInfo: UnsafeRawPointer) {
-        if let error = error {
-            print("Error saving image to photo library: \(error.localizedDescription)")
-        } else {
-            print("Image saved to photo library successfully.")
+    private func savePhotoToLibrary(_ image: UIImage) {
+        PHPhotoLibrary.requestAuthorization { status in
+            if status == .authorized {
+                PHPhotoLibrary.shared().performChanges {
+                    PHAssetChangeRequest.creationRequestForAsset(from: image)
+                } completionHandler: { success, error in
+                    if let error = error {
+                        print("Error saving photo to library: \(error.localizedDescription)")
+                    } else {
+                        print("Photo saved to library successfully.")
+                    }
+                }
+            } else {
+                print("Permission denied to access photo library.")
+            }
         }
     }
 }
