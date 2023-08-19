@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C8357EF72A910E9200395D3E /* DTMPView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8357EF62A910E9200395D3E /* DTMPView.swift */; };
+		C8357EF92A910EC700395D3E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8357EF82A910EC700395D3E /* SettingsView.swift */; };
+		C8357EFB2A910F3F00395D3E /* PasswordValidationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8357EFA2A910F3F00395D3E /* PasswordValidationView.swift */; };
+		C8357EFD2A910FD600395D3E /* WTMPView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8357EFC2A910FD600395D3E /* WTMPView.swift */; };
 		C84731A82A86732A009D9E68 /* WTMPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84731A72A86732A009D9E68 /* WTMPApp.swift */; };
 		C84731AA2A86732A009D9E68 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84731A92A86732A009D9E68 /* ContentView.swift */; };
 		C84731AC2A86732D009D9E68 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C84731AB2A86732D009D9E68 /* Assets.xcassets */; };
@@ -15,6 +19,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C8357EF62A910E9200395D3E /* DTMPView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTMPView.swift; sourceTree = "<group>"; };
+		C8357EF82A910EC700395D3E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C8357EFA2A910F3F00395D3E /* PasswordValidationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordValidationView.swift; sourceTree = "<group>"; };
+		C8357EFC2A910FD600395D3E /* WTMPView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WTMPView.swift; sourceTree = "<group>"; };
 		C84731A42A86732A009D9E68 /* WTMP.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WTMP.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C84731A72A86732A009D9E68 /* WTMPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WTMPApp.swift; sourceTree = "<group>"; };
 		C84731A92A86732A009D9E68 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -58,6 +66,10 @@
 				C87A3F672A8F9BA10041527A /* alarm.mp3 */,
 				C84731A72A86732A009D9E68 /* WTMPApp.swift */,
 				C84731A92A86732A009D9E68 /* ContentView.swift */,
+				C8357EFC2A910FD600395D3E /* WTMPView.swift */,
+				C8357EF62A910E9200395D3E /* DTMPView.swift */,
+				C8357EF82A910EC700395D3E /* SettingsView.swift */,
+				C8357EFA2A910F3F00395D3E /* PasswordValidationView.swift */,
 				C84731AB2A86732D009D9E68 /* Assets.xcassets */,
 				C84731AD2A86732D009D9E68 /* Preview Content */,
 			);
@@ -143,7 +155,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C8357EF92A910EC700395D3E /* SettingsView.swift in Sources */,
 				C84731AA2A86732A009D9E68 /* ContentView.swift in Sources */,
+				C8357EF72A910E9200395D3E /* DTMPView.swift in Sources */,
+				C8357EFB2A910F3F00395D3E /* PasswordValidationView.swift in Sources */,
+				C8357EFD2A910FD600395D3E /* WTMPView.swift in Sources */,
 				C84731A82A86732A009D9E68 /* WTMPApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
