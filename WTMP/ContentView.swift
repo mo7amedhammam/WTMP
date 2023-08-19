@@ -37,50 +37,94 @@ struct WTMPView: View {
     @State private var isMotionDetectionActive = false
     @State private var isPasscodeSettingActive = false
     @State private var enteredPasscode = ""
-    
+    @State private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+
     var body: some View {
         VStack {
             Text("WTMP")
                 .font(.largeTitle)
-            
+
             Spacer()
-            
-                Button(action: {
-//                    if let savedPasscode = UserDefaults.standard.string(forKey: "passcode") {
-                    print("savedPasscode",UserDefaults.standard.string(forKey: "passcode") ?? "0000")
-                        if UserDefaults.standard.string(forKey: "passcode") == "" || UserDefaults.standard.string(forKey: "passcode") == nil{
-                        
-                        isPasscodeSettingActive = true
-                    } else {
-                        if !isSoundPlaying{
-                            startMotionDetection()
-                        }else{
-                            isPasscodeSettingActive = true
-                        }
-                    }
-                }) {
-                    Text(isMotionDetectionActive ? "Stop" : "Play")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(isMotionDetectionActive ? Color.red : Color.green)
-                        .cornerRadius(10)
-                        .padding(.horizontal, 20)
-                }
+
+            Button(action: {
+                handlePlayStopButtonTap()
+            }) {
+                Text(isMotionDetectionActive ? "Stop" : "Play")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(isMotionDetectionActive ? Color.red : Color.green)
+                    .cornerRadius(10)
+                    .padding(.horizontal, 20)
+            }
         }
         .padding(.bottom)
-        .sheet(isPresented: $isPasscodeSettingActive){
-            PasswordValidationView(isPasscodeSettingActive: $isPasscodeSettingActive,
-                                             enteredPasscode: $enteredPasscode,
-                                   stopMotionDetection: stopMotionDetection, stopSoundPlay: {}) // Pass the closure here
-
+        .onAppear {
+            configureAudioSession()
+            configureMotionDetection()
         }
-        
+        .onDisappear {
+            deactivateAudioSession()
+            stopMotionDetection()
+        }
+        .sheet(isPresented: $isPasscodeSettingActive) {
+            PasswordValidationView(
+                isPasscodeSettingActive: $isPasscodeSettingActive,
+                enteredPasscode: $enteredPasscode,
+                stopMotionDetection: stopMotionDetection,
+                stopSoundPlay: stopSoundPlay)
+        }
     }
 
+    private func configureAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Error configuring audio session: \(error.localizedDescription)")
+        }
+    }
 
-    
+    private func deactivateAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setActive(false)
+        } catch {
+            print("Error deactivating audio session: \(error.localizedDescription)")
+        }
+    }
+
+    private func configureMotionDetection() {
+        if motionManager.isAccelerometerAvailable {
+            motionManager.accelerometerUpdateInterval = 0.2
+            motionManager.startAccelerometerUpdates(to: .main) { accelerometerData, error in
+                if let acceleration = accelerometerData?.acceleration {
+                    let magnitude = sqrt(acceleration.x * acceleration.x +
+                                         acceleration.y * acceleration.y +
+                                         acceleration.z * acceleration.z)
+
+                    let movementThreshold: Double = 1.2
+
+                    if magnitude > movementThreshold && !isSoundPlaying && isMotionDetectionActive {
+                        playAlarmSound()
+                    }
+                }
+            }
+        }
+    }
+
+    private func handlePlayStopButtonTap() {
+        if let savedPasscode = UserDefaults.standard.string(forKey: "passcode"), !savedPasscode.isEmpty {
+            if !isSoundPlaying {
+                toggleMotionDetection()
+            } else {
+                isPasscodeSettingActive = true
+            }
+        } else {
+            isPasscodeSettingActive = true
+        }
+    }
+
     private func toggleMotionDetection() {
         if isMotionDetectionActive {
             stopMotionDetection()
@@ -89,35 +133,28 @@ struct WTMPView: View {
         }
     }
 
-    
-      private func startMotionDetection() {
-          if motionManager.isAccelerometerAvailable {
-              motionManager.accelerometerUpdateInterval = 0.2
-              motionManager.startAccelerometerUpdates(to: .main) { accelerometerData, error in
-                  if let acceleration = accelerometerData?.acceleration {
-                      let magnitude = sqrt(acceleration.x * acceleration.x +
-                                           acceleration.y * acceleration.y +
-                                           acceleration.z * acceleration.z)
-                      
-                      let movementThreshold: Double = 1.2
-                      
-                      if magnitude > movementThreshold && !isSoundPlaying {
-                          playAlarmSound()
-                      }
-                  }
-              }
-          }
-          isMotionDetectionActive = true
-           }
-    
+    private func startMotionDetection() {
+        isMotionDetectionActive = true
+        backgroundTask = UIApplication.shared.beginBackgroundTask { [self] in
+            self.endBackgroundTask()
+        }
+    }
+
     private func stopMotionDetection() {
         motionManager.stopAccelerometerUpdates()
         isMotionDetectionActive = false
         audioPlayer?.stop()
         isSoundPlaying = false
+        endBackgroundTask()
     }
-    
-    
+
+    private func endBackgroundTask() {
+        if backgroundTask != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundTask)
+            backgroundTask = .invalid
+        }
+    }
+
     private func playAlarmSound() {
         isSoundPlaying = true
         do {
@@ -135,7 +172,12 @@ struct WTMPView: View {
             print("Error playing sound: \(error.localizedDescription)")
         }
     }
-    
+
+    private func stopSoundPlay() {
+        audioPlayer?.stop()
+        isSoundPlaying = false
+    }
+
     private func getAlarmSoundURL() throws -> URL {
         guard let soundURL = Bundle.main.url(forResource: "alarm", withExtension: "mp3") else {
             throw NSError(domain: "com.yourapp", code: 1, userInfo: [NSLocalizedDescriptionKey: "Alarm sound file not found"])
@@ -144,11 +186,17 @@ struct WTMPView: View {
     }
 }
 
+
+
+
+
 struct PasswordValidationView: View {
     @Binding var isPasscodeSettingActive: Bool
     @Binding var enteredPasscode: String
     var stopMotionDetection: () -> Void // Closure to stop motion detection
-    var stopSoundPlay: () -> Void // Closure to stop motion detection
+    var stopSoundPlay: () -> Void // Closure to stop sound play
+
+    @State private var showError: Bool = false // State to control error message visibility
 
     var body: some View {
         VStack{
@@ -160,9 +208,13 @@ struct PasswordValidationView: View {
                 validatePasscode()
             }
             .padding()
+
+            if showError {
+                Text("Incorrect passcode. Please try again.")
+                    .foregroundColor(.red)
+            }
         }
     }
-    // ... (existing functions)
 
     private func validatePasscode() {
         if let savedPasscode = UserDefaults.standard.string(forKey: "passcode") {
@@ -171,11 +223,12 @@ struct PasswordValidationView: View {
                 stopMotionDetection() // Call the closure to stop motion detection
                 stopSoundPlay()
             } else {
-                // Show error message or retry logic
+                showError = true // Set the state to show error message
             }
         }
     }
 }
+
 
 
 struct DTMPView: View {
